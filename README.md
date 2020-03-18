@@ -29,7 +29,7 @@ instead of `-c`. This will give you a nice set of `*.o` files that
 aren't really object files - they are instead preprocessed, standalone
 source.
 
-Now "feed" this standalone preprocessed source to my script here:
+Now "feed" the standalone preprocessed sources to this script - e.g. like this:
 
     cd /path/to/preprocessed
     rename -E 's,o$,c,' *.o
@@ -44,14 +44,19 @@ wherever they may appear:
 - Used as function pointers in global arrays
 - etc
 
-Is this script bulletproof? Can you trust it with your life?
+How it works:
 
-I don't know - I did my best to get there. Please raise an issue in this
-Github repo if you see that I missed something.
+- It uses Python Clang bindings to parse the provided C code. 
+- The parsed ASTs are stored in a “.cache” folder, to avoid reprocessing in subsequent invocations.
+- The ASTs are then traversed - and a complete list of functions is gathered, as well as a call graph *(via processing of the `CursorKind.CALL_EXPR` tokens of Clang)*
+- The entire AST is then traversed again - and every token of every expression is checked, to see if it refers to one of the already recognized *(in the previous step)* functions. If so, the function is marked as “used”.
+- Finally, this information is dumped inside the `used_functions` output.
+
+Please raise an issue in this Github repo if you see that there was something I missed.
 
 --
 
-Made during the COVID-19 quarantine days of 2020. The silver lining is
-that at least this isolation allows for some focused, uninterrupted work.
+Made during the COVID-19 quarantine days of 2020. The silver lining with
+this isolation is that it allows for some focused, uninterrupted work.
 
 Thanassis Tsiodras ( ttsiodras@gmail.com )
