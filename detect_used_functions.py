@@ -117,8 +117,17 @@ def main():
     of functions at any place, to collect the actually used functions.
 
     Finally, report the unused ones.
+
+    The first command line argument expected is the ELF (so we can gather
+    the entire list of functions in the object code). The remaining ones
+    are the preprocessed C source files.
     """
-    idx, t_units = parse_files(sys.argv[1:])
+    elf_filename = sys.argv[1]
+    cmd = 'sparc-rtems-objdump -t "' + elf_filename + '" '
+    cmd += '| grep "F .text" ' + "| awk '{print $NF}'"
+    set_of_all_functions_in_binary = set(
+        func_name.strip() for func_name in os.popen(cmd).readlines())
+    idx, t_units = parse_files(sys.argv[2:])
 
     # To avoid parsing all the time, store the list of functions
     # and the call graph in a local cache (the 1st time they are computed)
@@ -127,7 +136,7 @@ def main():
     if all(os.path.exists(x)
            for x in [CACHE_FUNCTION_NAMES, CACHE_CALL_GRAPH]):
         # Yes, get data from caches
-        call_graph, set_of_function_names = (
+        call_graph, _ = (
             pickle.load(open(CACHE_CALL_GRAPH)),
             pickle.load(open(CACHE_FUNCTION_NAMES)))
     else:
@@ -158,7 +167,7 @@ def main():
             potential_func_name = token.spelling.strip()
             # Avoid including the function definition as a 'usage'
             if potential_func_name != node.spelling \
-                    and potential_func_name in set_of_function_names \
+                    and potential_func_name in set_of_all_functions_in_binary \
                     and potential_func_name not in used_functions:
                 print('[#]', potential_func_name, 'is mentioned in',
                       node.spelling, 'at', node.location)
@@ -173,7 +182,20 @@ def main():
 
     unused_1, unused_2 = \
         parse_calls(idx, t_units, collect_function_mentions)
-    open('usedFunctions', 'w').write('\n'.join(sorted(used_functions)))
+
+    # Normally, we could report here simply the set subtraction
+    # between set_of_function_names and used_functions.
+    #
+    # But __inline__ functions in header files break this:
+    # as far as Clang is concerned, they are fully available
+    # functions, so if they are not used anywhere, they are
+    # reported as dead.
+    #
+    # We instead report the results of set subtraction between the
+    # set of all functions that exist in the final binary and the
+    # ones that were actually used in the source tree.
+    open('deadFunctions', 'w').write('\n'.join(
+        sorted(set_of_all_functions_in_binary - used_functions)))
 
 
 if __name__ == "__main__":
