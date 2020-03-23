@@ -7,7 +7,6 @@ from __future__ import print_function
 
 import os
 import sys
-import pickle
 from collections import defaultdict
 
 # For mypy static type checks.
@@ -15,11 +14,6 @@ from typing import Set, Optional, List, Tuple, Any, Dict  # NOQA
 
 from clang.cindex import (
     CursorKind, Index, TranslationUnit, TranslationUnitLoadError)
-
-SET_OF_ALL_FUNCTIONS = set()   # type: Set[str]
-
-CACHE_FUNCTION_NAMES = '.function_names'
-CACHE_CALL_GRAPH = '.call_graph'
 
 
 def find_funcs_and_calls(t_unit, set_of_function_names, cursor_work):
@@ -124,29 +118,10 @@ def main():
     """
     elf_filename = sys.argv[1]
     cmd = 'sparc-rtems-objdump -t "' + elf_filename + '" '
-    cmd += '| grep "F .text" ' + "| awk '{print $NF}'"
+    cmd += '| grep "F  *\\.text" ' + "| awk '{print $NF}'"
     set_of_all_functions_in_binary = set(
         func_name.strip() for func_name in os.popen(cmd).readlines())
     idx, t_units = parse_files(sys.argv[2:])
-
-    # To avoid parsing all the time, store the list of functions
-    # and the call graph in a local cache (the 1st time they are computed)
-    #
-    # Are all caches populated?
-    if all(os.path.exists(x)
-           for x in [CACHE_FUNCTION_NAMES, CACHE_CALL_GRAPH]):
-        # Yes, get data from caches
-        call_graph, _ = (
-            pickle.load(open(CACHE_CALL_GRAPH)),
-            pickle.load(open(CACHE_FUNCTION_NAMES)))
-    else:
-        # No, it's time to parse the input C files and create the data.
-        def no_work(_):
-            pass
-        call_graph, set_of_function_names = parse_calls(idx, t_units, no_work)
-        # Save the parsed information in the two caches
-        pickle.dump(call_graph, open(CACHE_CALL_GRAPH, "w"))
-        pickle.dump(set_of_function_names, open(CACHE_FUNCTION_NAMES, "w"))
 
     used_functions = set()  # type: Set[str]
 
