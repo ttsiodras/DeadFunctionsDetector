@@ -9,7 +9,7 @@ There are two categories of dead code:
   to always evaluate one way. A Static Analyser can see that e.g.
   a specific "if"'s condition will always be true - making the
   corresponding "else"'s body 'dead code'. Use a static analyser - e.g. the
-  [https://clang-analyzer.llvm.org/](Clang Static Analyser), which is
+  [Clang Static Analyser](https://clang-analyzer.llvm.org/), which is
   available under a free, open-source license - to detect these
   cases.
 

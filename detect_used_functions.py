@@ -5,6 +5,7 @@ and then detects the functions that are used - anywhere.
 """
 from __future__ import print_function
 
+import re
 import os
 import sys
 from collections import defaultdict
@@ -158,15 +159,29 @@ def main():
     unused_1, unused_2 = \
         parse_calls(idx, t_units, collect_function_mentions)
 
-    # Normally, we could report here simply the set subtraction
-    # between set_of_function_names and used_functions.
+    # This addresses all mentions of functions in the code we compile.
+    # This still doesn't suffice, though - because if one of the C files
+    # calls a function we don't have the source code of (e.g. ep_FOO)
+    # and this function in turn calls ep_BAR, then ep_BAR is *not*
+    # a dead function - even though it doesn't appear anywhere in any
+    # of the C sources.
     #
-    # But __inline__ functions in header files break this:
-    # as far as Clang is concerned, they are fully available
-    # functions, so if they are not used anywhere, they are
-    # reported as dead.
-    #
-    # We instead report the results of set subtraction between the
+    # So we will also collect the "mentions" made in the disassembly
+    cmd = 'sparc-rtems-objdump -d -S "' + elf_filename + '" '
+    function_name_pattern = re.compile(r'^(\S+) <([a-zA-Z0-9_]+?)>:')
+    any_mention_pattern = re.compile(r'<([a-zA-Z0-9_]+?)>')
+
+    for line in os.popen(cmd).readlines():
+        line = line.strip()
+        match = function_name_pattern.match(line)
+        if match:
+            pass  # Ignore line that define a new function
+        else:
+            match = any_mention_pattern.search(line)
+            if match:
+                used_functions.add(match.group(1))
+
+    # We report the results of set subtraction between the
     # set of all functions that exist in the final binary and the
     # ones that were actually used in the source tree.
     open('deadFunctions', 'w').write('\n'.join(
