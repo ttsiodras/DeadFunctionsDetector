@@ -23,7 +23,7 @@ It is easy to gather the complete list of functions in a binary - via the
 platform's `objdump`, and something like this...
 
     sparc-rtems-objdump -t ${TARGET} \
-        | grep "F .text" \
+        | grep "F  *\.text" \
         | awk '{print $NF}' \
         | sort -u \
         > all_functions
@@ -44,7 +44,7 @@ instead of `-c`. This will give you a set of `*.o` files that
 aren't really object files - they are instead preprocessed,
 standalone source code.
 
-Rename it appropriately:
+Rename them appropriately:
 
     cd /path/to/preprocessed
     rename -E 's,o$,c,' *.o
@@ -56,26 +56,34 @@ script - e.g. like this:
     ./detect_used_functions.py the_elf_binary /path/to/preprocessed/*.c
 
 The script will record the dead functions in an output file called
-by that name (`deadFunctions`),
+`deadFunctions`,
 
-The functions actually used are collected from all...
+The functions actually used are collected from everywhere...
 
-- call sites
-- as function pointers in right-handside assignments
-- as function pointers in global arrays
+- all call sites
+- function pointers in right-handside assignments
+- function pointers in global arrays
 - etc
 
 How it works:
 
-- It uses objdump to collect all functions' names from the ELF.
+- uses objdump to collect all functions' names from the ELF.
 - It then uses Python Clang bindings to parse the provided C code.
 - The parsed ASTs are stored in a “.cache” folder, to avoid reprocessing
   in subsequent invocations.
 - The entire AST is then traversed - and every token of every expression
   is checked, to see if it refers to one of the already recognized
   *(in the first step)* functions. If so, the function is marked as "used".
-- Finally, the two sets are subtracted - and what is left is stored
-  inside the `deadFunctions` output.
+- This addresses all mentions of functions in the C code we compile.
+  But this still doesn't suffice - because if one of the C files
+  calls a function we don't have the source code of (e.g. `ep_FOO`)
+  and this function in turn calls `ep_BAR`, then `ep_BAR` is *not*
+  a dead function - even though it doesn't appear anywhere in any
+  of the C sources.
+- So we will also collect the "mentions" made in the disassembly,
+  and mark them as "used", too.
+- Finally, the set of "used" is subtracted from the set of "all" - and
+  whatever remains is stored inside the `deadFunctions` output.
 
 --
 
