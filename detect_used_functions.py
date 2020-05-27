@@ -118,10 +118,35 @@ def main():
     are the preprocessed C source files.
     """
     elf_filename = sys.argv[1]
+    #
+    # One would expect the list of Function symbols reported by objdump -t
+    # to be the perfect source of truth in terms of the complete set of
+    # functions in the binary.
+    #
+    # Alas, that's not the case. Very surprisingly, the following command
+    # emits symbols that exist *nowhere* in the disassembled output.
+    # I mean nowhere - there's no definition, no reference, nothing.
+    #
     cmd = 'sparc-rtems-objdump -t "' + elf_filename + '" '
     cmd += '| grep "F  *\\.text" ' + "| awk '{print $NF}'"
-    set_of_all_functions_in_binary = set(
+    set_of_all_functions_per_objdump_t_in_binary = set(
         func_name.strip() for func_name in os.popen(cmd).readlines())
+
+    # So to clean this list up, we instead collect the symbols that appear
+    # as "<symbolName>:" in the disassembled output...
+    cmd = 'sparc-rtems-objdump -d -S "' + elf_filename + '" '
+    function_name_pattern = re.compile(r'^(\S+) <([a-zA-Z0-9_]+?)>:')
+    set_of_all_functions_in_binary = set()
+    for line in os.popen(cmd).readlines():
+        line = line.strip()
+        match = function_name_pattern.match(line)
+        if match:
+            # Don't include addresses of non-function symbols
+            maybe_function_name = match.group(2)
+            if maybe_function_name in \
+                    set_of_all_functions_per_objdump_t_in_binary:
+                set_of_all_functions_in_binary.add(maybe_function_name)
+
     idx, t_units = parse_files(sys.argv[2:])
 
     used_functions = set()  # type: Set[str]
