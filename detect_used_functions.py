@@ -117,6 +117,10 @@ def main():
     the entire list of functions in the object code). The remaining ones
     are the preprocessed C source files.
     """
+    if len(sys.argv) <= 2:
+        print("Usage:", sys.argv[0], "ELF", "preprocessed_source_files")
+        sys.exit(1)
+
     elf_filename = sys.argv[1]
     #
     # One would expect the list of Function symbols reported by objdump -t
