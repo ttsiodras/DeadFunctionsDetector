@@ -48,7 +48,7 @@ def find_funcs_and_calls(t_unit, set_of_function_names, cursor_work):
     return calls_made_by
 
 
-def parse_calls(unused_idx, t_units, cursor_work):
+def parse_calls(t_units, cursor_work):
     # type: (Any, List[Any], Any) -> Tuple[ Dict[str,List[str]], Set[str] ]
     """
     Gather all the calls made by all translation units.
@@ -60,13 +60,6 @@ def parse_calls(unused_idx, t_units, cursor_work):
         # Gather all the calls made by functions in this C file
         calls_made_by_this_tu = find_funcs_and_calls(
             t_unit, set_of_function_names, cursor_work)
-        # For each one of the functions in this C file,
-        for func, calls in calls_made_by_this_tu.items():
-            # enumerate over all the calls it made
-            for funcname in calls:
-                # ...and gather them in the global dictionary.
-                calls_made_by_all_funcs[func].append(funcname)
-    return calls_made_by_all_funcs, set_of_function_names
 
 
 def parse_files(list_of_files):
@@ -182,11 +175,8 @@ def main():
     #
     # le_units = [x for x in t_units if x.spelling.endswith('svc191vnir.c')]
     # import ipdb ; ipdb.set_trace()
-    # unused_1, unused_2 = \
-    #     parse_calls(idx, le_units, collect_function_mentions)
 
-    unused_1, unused_2 = \
-        parse_calls(idx, t_units, collect_function_mentions)
+    parse_calls(t_units, collect_function_mentions)
 
     # This addresses all mentions of functions in the code we compile.
     # This still doesn't suffice, though - because if one of the C files
