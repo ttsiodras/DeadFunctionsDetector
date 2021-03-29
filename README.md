@@ -113,7 +113,7 @@ Rename them appropriately:
 ...and then "feed" these standalone preprocessed sources to this
 script, alongside the ELF binary - e.g. with an invocation like this:
 
-    ./detect_used_functions.py the_elf_binary /path/to/preprocessed/*.c
+    ./detect_unused_functions.py the_elf_binary /path/to/preprocessed/*.c
 
 The script will record the dead functions in an output file called
 `deadFunctions`,
