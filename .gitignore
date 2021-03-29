@@ -5,3 +5,4 @@
 .processed
 usedFunctions
 libclang-7.so
+deadFunctions

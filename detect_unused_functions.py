@@ -17,12 +17,18 @@ from clang.cindex import (
     CursorKind, Index, TranslationUnit, TranslationUnitLoadError)
 
 
+# For SPARC targets, this is the toolchain prefix
+G_PLATFORM_PREFIX = "sparc-rtems-"
+
+
 def parse_calls(t_units, cursor_work):
     # type: (List[Any], Any) -> None
     """
     Also, collect all defined functions' names.
     """
-    for t_unit in t_units:
+    for idx, t_unit in enumerate(t_units):
+        print("[-] %3d%% Navigating AST and collecting symbols... " % (
+            100*(1+idx)/len(t_units)))
         # Gather all the calls made by functions in this C file
         for node in t_unit.cursor.walk_preorder():
             cursor_work(node)
@@ -42,7 +48,7 @@ def parse_files(list_of_files):
     # of each compilation unit in a cache.
     if not os.path.exists(".cache"):
         os.mkdir(".cache")
-    for filename in list_of_files:
+    for i, filename in enumerate(list_of_files):
         cache_filename = '.cache/' + os.path.basename(filename) + "_cache"
         # Have I parsed this file before?
         if os.path.exists(cache_filename):
@@ -53,12 +59,14 @@ def parse_files(list_of_files):
                         cache_filename, idx))
                 print("[-] Loading cached AST for", filename)
             except TranslationUnitLoadError:
-                print("[-] Parsing", filename)
+                print("[-] %3d%% Parsing " % (
+                    100*(i+1)/len(list_of_files)) + filename)
                 t_units.append(idx.parse(filename))
                 t_units[-1].save(cache_filename)
         else:
             # No, parse it now.
-            print("[-] Parsing", filename)
+            print("[-] %3d%% Parsing " % (
+                100*(i+1)/len(list_of_files)) + filename)
             t_units.append(idx.parse(filename))
             t_units[-1].save(cache_filename)
     return idx, t_units
@@ -80,6 +88,8 @@ def main():
         print("Usage:", sys.argv[0], "ELF", "preprocessed_source_files")
         sys.exit(1)
 
+    print("[-] Extracting list of functions from ELF...")
+
     elf_filename = sys.argv[1]
     #
     # One would expect the list of Function symbols reported by objdump -t
@@ -90,14 +100,19 @@ def main():
     # emits symbols that exist *nowhere* in the disassembled output.
     # I mean nowhere - there's no definition, no reference, nothing.
     #
-    cmd = 'sparc-rtems-objdump -t "' + elf_filename + '" '
+    cmd = G_PLATFORM_PREFIX + 'objdump -t "' + elf_filename + '" '
+    if os.system(cmd + ">/dev/null") != 0:
+        print("Failed to launch " + G_PLATFORM_PREFIX + "objdump...")
+        sys.exit(1)
     cmd += '| grep "F  *\\.text" ' + "| awk '{print $NF}'"
     set_of_all_functions_per_objdump_t_in_binary = set(
         func_name.strip() for func_name in os.popen(cmd).readlines())
 
+    print("[-] Cleaning up list of functions from ELF...")
+
     # So to clean this list up, we instead collect the symbols that appear
     # as "<symbolName>:" in the disassembled output...
-    cmd = 'sparc-rtems-objdump -d -S "' + elf_filename + '" '
+    cmd = G_PLATFORM_PREFIX + 'objdump -d -S "' + elf_filename + '" '
     function_name_pattern = re.compile(r'^(\S+) <([a-zA-Z0-9_]+?)>:')
     set_of_all_functions_in_binary = set()
     for line in os.popen(cmd).readlines():
@@ -133,8 +148,8 @@ def main():
             if potential_func_name != node.spelling \
                     and potential_func_name in set_of_all_functions_in_binary \
                     and potential_func_name not in used_functions:
-                print('[#]', potential_func_name, 'is mentioned in',
-                      node.spelling, 'at', node.location)
+                # print('[#]', potential_func_name, 'is mentioned in',
+                #       node.spelling, 'at', node.location)
                 used_functions.add(potential_func_name)
 
     # To debug what happens with a specific compilation unit, use this:
@@ -152,7 +167,7 @@ def main():
     # of the C sources.
     #
     # So we will also collect the "mentions" made in the disassembly
-    cmd = 'sparc-rtems-objdump -d -S "' + elf_filename + '" '
+    cmd = G_PLATFORM_PREFIX + 'objdump -d -S "' + elf_filename + '" '
     function_name_pattern = re.compile(r'^(\S+) <([a-zA-Z0-9_]+?)>:')
     any_mention_pattern = re.compile(r'<([a-zA-Z0-9_]+?)>')
 
@@ -169,8 +184,10 @@ def main():
     # We report the results of set subtraction between the
     # set of all functions that exist in the final binary and the
     # ones that were actually used in the source tree.
+    print("[-] Generating output: 'deadFunctions' file...")
     open('deadFunctions', 'w').write('\n'.join(
         sorted(set_of_all_functions_in_binary - used_functions)))
+    print("[-] Done.")
 
 
 if __name__ == "__main__":
