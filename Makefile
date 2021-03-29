@@ -8,3 +8,6 @@ all:	.processed
 	pylint $<
 	mypy --ignore-missing-imports $<
 	touch $@
+
+clean:
+	rm -rf .cache/ .mypy_cache/ .processed
