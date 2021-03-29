@@ -1,65 +1,31 @@
 #!/usr/bin/env python2
 """
 A utility that parses pre-processed (standalone) C files using Clang,
-and then detects the functions that are used - anywhere.
+and then detects and reports all functions inside an ELF that are
+not used anywhere.
 """
 from __future__ import print_function
 
 import re
 import os
 import sys
-from collections import defaultdict
 
 # For mypy static type checks.
-from typing import Set, Optional, List, Tuple, Any, Dict  # NOQA
+from typing import Set, List, Tuple, Any  # NOQA
 
 from clang.cindex import (
     CursorKind, Index, TranslationUnit, TranslationUnitLoadError)
 
 
-def find_funcs_and_calls(t_unit, set_of_function_names, cursor_work):
-    # type: (Any, Set[str], Any) -> Dict[str, List[str]]
-    """
-    Collects all the calls made by functions inside a translation unit, as
-    well as update the passed-in set_of_function_names with the set of
-    functions defined in this translation unit.
-    """
-    filename = t_unit.cursor.spelling
-    print("[-] Identifying calls made inside functions of", filename)
-    calls_made_by = defaultdict(list)  # type: Dict[str, List[str]]
-    current_function = None            # type: Optional[str]
-    for node in t_unit.cursor.walk_preorder():
-        cursor_work(node)
-        if node.location.file is None:
-            pass
-        elif node.location.file.name != filename:
-            pass
-        elif node.kind == CursorKind.CALL_EXPR:
-            # We are calling someone
-            callee = node.spelling
-            if current_function is not None and \
-                    callee not in calls_made_by[current_function]:
-                # Add him in the list.
-                calls_made_by[current_function].append(callee)
-        elif node.kind == CursorKind.FUNCTION_DECL:
-            # Oh good, new function definition starts
-            current_function = node.mangled_name
-            set_of_function_names.add(current_function)  # type: ignore
-    return calls_made_by
-
-
 def parse_calls(t_units, cursor_work):
-    # type: (Any, List[Any], Any) -> Tuple[ Dict[str,List[str]], Set[str] ]
+    # type: (List[Any], Any) -> None
     """
-    Gather all the calls made by all translation units.
     Also, collect all defined functions' names.
     """
-    set_of_function_names = set()      # type: Set[str]
-    calls_made_by_all_funcs = defaultdict(list)  # type: Dict[str,List[str]]
     for t_unit in t_units:
         # Gather all the calls made by functions in this C file
-        calls_made_by_this_tu = find_funcs_and_calls(
-            t_unit, set_of_function_names, cursor_work)
+        for node in t_unit.cursor.walk_preorder():
+            cursor_work(node)
 
 
 def parse_files(list_of_files):
@@ -100,9 +66,9 @@ def parse_files(list_of_files):
 
 def main():
     """
-    Parse all passed-in C files (preprocessed with -E, to be standalone)
-    and create call graphs and list of functions. Then scout for mentions
-    of functions at any place, to collect the actually used functions.
+    Parse all passed-in C files (preprocessed with -E, to be standalone).
+    Then scout for mentions of functions at any place, to collect the
+    *actually* used functions.
 
     Finally, report the unused ones.
 
@@ -144,7 +110,7 @@ def main():
                     set_of_all_functions_per_objdump_t_in_binary:
                 set_of_all_functions_in_binary.add(maybe_function_name)
 
-    idx, t_units = parse_files(sys.argv[2:])
+    _, t_units = parse_files(sys.argv[2:])
 
     used_functions = set()  # type: Set[str]
 
