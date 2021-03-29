@@ -21,17 +21,38 @@ from clang.cindex import (
 G_PLATFORM_PREFIX = "sparc-rtems-"
 
 
-def parse_calls(t_units, cursor_work):
-    # type: (List[Any], Any) -> None
+def parse_ast(t_units, set_of_all_functions_in_binary, used_functions):
+    # type: (List[Any], Set[str], Set[str]) -> None
     """
-    Also, collect all defined functions' names.
+    Traverse the AST, gathering all mentions of our functions.
     """
     for idx, t_unit in enumerate(t_units):
         print("[-] %3d%% Navigating AST and collecting symbols... " % (
             100*(1+idx)/len(t_units)))
         # Gather all the calls made by functions in this C file
         for node in t_unit.cursor.walk_preorder():
-            cursor_work(node)
+            # To find the unused functions, we need to collect all 'mentions'
+            # of functions anywhere. This is generally speaking, hard...
+            # But... (see below)
+            if node.kind == CursorKind.TRANSLATION_UNIT:
+                continue
+
+            for token in node.get_tokens():
+                # But we can apply a simple heuristic: look at the tokens that
+                # appear in a translation unit - and check if you find a
+                # mention of a function (in the global set, which we've
+                # computed by now) If so, mark this as a 'used' function.
+
+                potential_func_name = token.spelling.strip()
+                # Avoid including the function definition as a 'usage'
+                if potential_func_name != node.spelling \
+                        and potential_func_name in \
+                        set_of_all_functions_in_binary \
+                        and potential_func_name not in used_functions:
+
+                    # print('[#]', potential_func_name, 'is mentioned in',
+                    #       node.spelling, 'at', node.location)
+                    used_functions.add(potential_func_name)
 
 
 def parse_files(list_of_files):
@@ -129,35 +150,12 @@ def main():
 
     used_functions = set()  # type: Set[str]
 
-    def collect_function_mentions(node):
-        """
-        To find the unused functions, we need to collect all 'mentions'
-        of functions anywhere. This is generally speaking, a hard problem.
-        But... (see below)
-        """
-        if node.kind == CursorKind.TRANSLATION_UNIT:
-            return
-
-        for token in node.get_tokens():
-            # But we can apply a simple heuristic: look at the tokens that
-            # appear in a translation unit - and check if you find a mention
-            # of a function (in the global set, which we've computed by now)
-            # If so, mark this as a 'used' function.
-            potential_func_name = token.spelling.strip()
-            # Avoid including the function definition as a 'usage'
-            if potential_func_name != node.spelling \
-                    and potential_func_name in set_of_all_functions_in_binary \
-                    and potential_func_name not in used_functions:
-                # print('[#]', potential_func_name, 'is mentioned in',
-                #       node.spelling, 'at', node.location)
-                used_functions.add(potential_func_name)
-
     # To debug what happens with a specific compilation unit, use this:
     #
     # le_units = [x for x in t_units if x.spelling.endswith('svc191vnir.c')]
     # import ipdb ; ipdb.set_trace()
 
-    parse_calls(t_units, collect_function_mentions)
+    parse_ast(t_units, set_of_all_functions_in_binary, used_functions)
 
     # This addresses all mentions of functions in the code we compile.
     # This still doesn't suffice, though - because if one of the C files
