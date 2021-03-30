@@ -1,10 +1,9 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 """
 A utility that parses pre-processed (standalone) C files using Clang,
 and then detects and reports all functions inside an ELF that are
 not used anywhere.
 """
-from __future__ import print_function
 
 import re
 import os
@@ -23,13 +22,15 @@ from clang.cindex import (
 G_PLATFORM_PREFIX = "sparc-rtems-"
 
 
-def parse_ast(t_units, set_of_all_functions_in_binary, used_functions):
-    # type: (List[Any], Set[str], Set[str]) -> None
+def parse_ast(
+        t_units: List[Any],
+        set_of_all_functions_in_binary: Set[str],
+        used_functions: Set[str]) -> None:
     """
     Traverse the AST, gathering all mentions of our functions.
     """
 
-    def process_unit(t_unit):
+    def process_unit(t_unit: Any):
         result = set()
         # Gather all the references to functions in this C file
         for node in t_unit.cursor.walk_preorder():
@@ -91,8 +92,7 @@ def parse_ast(t_units, set_of_all_functions_in_binary, used_functions):
             used_functions.add(func)
 
 
-def parse_files(list_of_files):
-    # type: (List[str]) -> Tuple[Any, List[Any]]
+def parse_files(list_of_files: List[str]) -> Tuple[Any, List[Any]]:
     """
     Use Clang to parse the provided list of files, and return
     a tuple of the Clang index, and the list of compiled ASTs
@@ -129,7 +129,7 @@ def parse_files(list_of_files):
     return idx, t_units
 
 
-def main():
+def main() -> None:
     """
     Parse all passed-in C files (preprocessed with -E, to be standalone).
     Then scout for mentions of functions at any place, to collect the
