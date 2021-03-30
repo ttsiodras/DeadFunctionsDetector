@@ -1,8 +1,43 @@
+# Setup - usage
+
+If you don't know what this is about, go read the "Introduction" section below.
+
+Then begin by setting up the virtual environment and activating it:
+
+    $ make dev-install
+    $ . .venv/bin/activate
+
+You can now modify your project's Makefiles/build system files to spawn your
+cross-compiler with `-E` instead of `-c`. This will give you a set of `*.o`
+files that aren't really object files - they are instead preprocessed,
+standalone source code.
+
+Collect them, and rename them appropriately:
+
+    $ mkdir /path/to/preprocessed
+    $ find /path/to/src -type f -iname '*.o' \
+        -exec mv -i '{}' /path/to/preprocessed/ \;
+    $ cd /path/to/preprocessed
+    $ rename -E 's,o$,c,' *.o
+    $ cd -
+
+You can now "feed" these standalone preprocessed sources to this
+script, alongside the ELF binary - e.g. with an invocation like this:
+
+    $ ./detect_unused_functions.py  \
+        /path/to/elf_binary         \
+        /path/to/preprocessed/*.c
+
+The script will then record the dead functions in an output file called
+`deadFunctions`.
+
+# Introduction
+
 In embedded code of sufficient criticality, dead code is forbidden.
 
 How can one detect it, then?
 
-# Take 1
+## Take 1
 
 Well, if you ask a mathematician "how do I detect dead code", he will answer:
 
@@ -23,9 +58,9 @@ at the first statement.
 And detecting whether a program halts or not, is an undecideable problem;
 no tool made by man can decide it.
 
-So... forget about it.
+So, the mathematician says: *"... forget about it"*.
 
-# Take 2
+## Take 2
 
 I am no mathematician. Like all engineers, I learned pretty quickly that
 the perfect is the enemy of the good - and that in the real world,
@@ -73,9 +108,9 @@ we could subtract the two - via GNU `comm`:
 
 Something that many people - including me - consider initially as an easy
 solution to this problem, is to scan the disassembled binary to find
-all calls; and collect in a list all called symbols.
+all `call`s; and collect in a list all called symbols.
 
-Voila!
+"Voila"!
 
 Sadly, that will only partly work. There's a lot of code that uses
 function pointers; e.g. implementing state machines via 2D arrays
@@ -96,27 +131,6 @@ pointers.
 normal and indirect calls, gathering all references to our functions;
 and only reporting the functions in our binary that are not referenced
 anywhere.
-
-# Usage
-
-Modify your Makefiles to spawn your cross-compiler with `-E`
-instead of `-c`. This will give you a set of `*.o` files that
-aren't really object files - they are instead preprocessed,
-standalone source code.
-
-Rename them appropriately:
-
-    cd /path/to/preprocessed
-    rename -E 's,o$,c,' *.o
-    cd -
-
-...and then "feed" these standalone preprocessed sources to this
-script, alongside the ELF binary - e.g. with an invocation like this:
-
-    ./detect_unused_functions.py the_elf_binary /path/to/preprocessed/*.c
-
-The script will record the dead functions in an output file called
-`deadFunctions`,
 
 The functions actually used are collected from everywhere...
 
@@ -147,9 +161,9 @@ As follows:
 - Finally, the set of "used" is subtracted from the set of "all" - and
   whatever remains is stored inside the `deadFunctions` output.
 
---
-
 Made during the COVID-19 quarantine days of 2020. The silver lining with
 this isolation is that it allows for some focused, uninterrupted work.
+
+Hope you find it useful!
 
 Thanassis Tsiodras ( ttsiodras@gmail.com )
