@@ -9,6 +9,8 @@ from __future__ import print_function
 import re
 import os
 import sys
+import time
+import multiprocessing
 
 # For mypy static type checks.
 from typing import Set, List, Tuple, Any  # NOQA
@@ -26,10 +28,10 @@ def parse_ast(t_units, set_of_all_functions_in_binary, used_functions):
     """
     Traverse the AST, gathering all mentions of our functions.
     """
-    for idx, t_unit in enumerate(t_units):
-        print("[-] %3d%% Navigating AST and collecting symbols... " % (
-            100*(1+idx)/len(t_units)))
-        # Gather all the calls made by functions in this C file
+
+    def process_unit(t_unit):
+        result = set()
+        # Gather all the references to functions in this C file
         for node in t_unit.cursor.walk_preorder():
             # To find the unused functions, we need to collect all 'mentions'
             # of functions anywhere. This is generally speaking, hard...
@@ -48,11 +50,45 @@ def parse_ast(t_units, set_of_all_functions_in_binary, used_functions):
                 if potential_func_name != node.spelling \
                         and potential_func_name in \
                         set_of_all_functions_in_binary \
-                        and potential_func_name not in used_functions:
+                        and potential_func_name not in result:
 
                     # print('[#]', potential_func_name, 'is mentioned in',
                     #       node.spelling, 'at', node.location)
-                    used_functions.add(potential_func_name)
+                    result.add(potential_func_name)
+        res_queue.put(result)
+
+    res_queue = multiprocessing.Queue()  # type: Any
+    list_of_processes = []  # type: List[Any]
+    running_instances = 0
+    for idx, t_unit in enumerate(t_units):
+        print("[-] %3d%% Navigating AST and collecting symbols... " % (
+            100*(1+idx)/len(t_units)))
+        if running_instances >= multiprocessing.cpu_count():
+            for func in res_queue.get():
+                used_functions.add(func)
+            all_are_still_alive = True
+            while all_are_still_alive:
+                for idx_proc, proc in enumerate(list_of_processes):
+                    child_alive = proc.is_alive()
+                    all_are_still_alive = all_are_still_alive and child_alive
+                    if not child_alive:
+                        del list_of_processes[idx_proc]
+                        break
+                else:
+                    time.sleep(1)
+            running_instances -= 1
+        proc = multiprocessing.Process(
+            target=process_unit, args=(t_unit,))
+        list_of_processes.append(proc)
+        proc.start()
+        running_instances += 1
+    for proc in list_of_processes:
+        proc.join()
+        if proc.exitcode != 0:
+            print("[x] Failure in one of the child processes...")
+            sys.exit(1)
+        for func in res_queue.get():
+            used_functions.add(func)
 
 
 def parse_files(list_of_files):
