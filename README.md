@@ -7,8 +7,16 @@ Then begin by setting up the virtual environment and activating it:
     $ make dev-install
     $ . .venv/bin/activate
 
+## Collecting preprocessed source code
+
+For clang to process the source code, it needs to know macros, include paths,
+etc. The easiest way to deal with this, is to make sure the relevant info
+is "burned" alongside the code - meaning, to record the preprocessed outputs.
+
+### Method 1
+
 You can now modify your project's Makefiles/build system files to spawn your
-cross-compiler with `-E` instead of `-c`. This will give you a set of `*.o`
+(cross)compiler with `-E` instead of `-c`. This will give you a set of `*.o`
 files that aren't really object files - they are instead preprocessed,
 standalone source code.
 
@@ -20,6 +28,21 @@ Collect them, and rename them appropriately:
     $ cd /path/to/preprocessed
     $ rename -E 's,o$,c,' *.o
     $ cd -
+
+### Method 2
+
+Modify your Makefile to spawn your (cross)compiler with `-save-temps`.
+Then collect the preprocessed outputs (i.e. the *.i* files) that appear
+after the build:
+
+    $ mkdir /path/to/preprocessed
+    $ find /path/to/src -type f -iname '*.i' \
+        -exec mv -i '{}' /path/to/preprocessed/ \;
+    $ cd /path/to/preprocessed
+    $ rename -E 's,i$,c,' *.i
+    $ cd -
+
+## Feed preprocessed output to the script
 
 You can now "feed" these standalone preprocessed sources to this
 script, alongside the ELF binary - e.g. with an invocation like this:
