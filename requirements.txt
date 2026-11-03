@@ -1,5 +1,5 @@
 libclang==11.1.0
 typing==3.7.4.3
 flake8==3.9.0
-pylint==2.6.2
+pylint==4.0.9
 mypy==0.812
